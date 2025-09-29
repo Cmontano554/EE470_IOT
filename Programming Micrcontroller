@@ -1,0 +1,60 @@
+#include <Arduino.h>
+//=======================
+// title: LUX_meter
+//=======================
+
+//Program Detail:
+//=======================
+// Purpose: to display LUX Values on the serial Monitor. When LUX goes below 300 the Buzzer goes off.
+// and RGB turns white. When Lux increases The RGB turns more red. Whe letter "B" is typed into
+// Buzzer goes off for 5 seconds.
+// Inputs: letter "B" into terminal, voltage from photoresistor
+// Outputs: RGB LED values, buzzer, Lux values displayed on Serial monitor
+// Date: 9/26/2025
+// Compiler: Version 1.104.2
+// Author: Cole Montano
+// Versions:
+// v1 - successful implimented lux meter using rough calculation
+// v2 - successful implimented lux meter using line equation from voltage graph
+//
+//=======================
+// File Dependencies: None
+// Fuctions: NONE
+// Simple Photoresistor + RGB LED + Buzzer (ESP8266)
+const int R_PIN = D5, G_PIN = D6, B_PIN = D7; 
+const int BUZZER = D8, LDR = A0;
+const int THRESHOLD = 400;  // Lux threshold for turn on buzzer
+unsigned long buzzUntil = 0;
+
+void setup() {
+  Serial.begin(9600);   //  9600 baud rate
+  pinMode(R_PIN, OUTPUT); pinMode(G_PIN, OUTPUT); pinMode(B_PIN, OUTPUT);
+  pinMode(BUZZER, OUTPUT);
+  Serial.println("Send 'B' to buzz 5s");
+}
+
+void loop() {
+  // Serial trigger
+  if (Serial.available() && Serial.read() == 'B') buzzUntil = millis() + 5000;
+
+  // Read LDR and convert to Lux-ish
+  // Read LDR and convert to Lux-ish
+  int adc = analogRead(LDR);
+  adc = 1023 - adc;                  // invert reading
+  adc=adc-100;
+  float lux = adc * 600.0 / 900.0;   // rough scale
+  Serial.print("Lux: "); 
+  Serial.println(lux);
+
+  // LED color: dark = white, bright = red
+  float t = min(lux / 560.0, 1.0); //natural light= roughly 560 lUX
+  analogWrite(R_PIN, 255 );
+  analogWrite(G_PIN, 255 * (1 - t));//when lux is above 560 G and B decrease, becoming more red
+  analogWrite(B_PIN, 255 * (1 - t));
+
+  // Buzzer: on if Lux < threshold or user pressed B
+  if (lux < THRESHOLD) buzzUntil = millis() + 800;
+  digitalWrite(BUZZER, millis() < buzzUntil);
+
+  delay(200);
+}
