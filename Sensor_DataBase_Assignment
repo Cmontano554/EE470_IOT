@@ -1,3 +1,11 @@
+/*=====================================
+File Name: Sensor Database
+Author: Cole Montano
+Version 1.0: Final Version 10/3/2025
+Description: Creates two simple tables to log sensor data and to 
+register different registers to be used in later projects 
+========================================*/
+
 CREATE TABLE sensor_register (
     node_name VARCHAR(10) PRIMARY KEY,
     manufacturer VARCHAR(10),
