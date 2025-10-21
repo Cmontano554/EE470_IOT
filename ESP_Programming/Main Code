@@ -1,0 +1,53 @@
+#include <Arduino.h>
+#include "dependencies.h"
+
+void setup() {
+  Serial.begin(9600);
+  connectWiFi();
+  initSensors();
+  initSwitches();
+}
+
+void loop() {
+  // --- Node 1 button pressed ---
+  if (isNode1Pressed()) {
+    Serial.println("Node_1 button pressed — preparing data...");
+
+    float temp = readTemperature();
+    float hum = readHumidity();
+
+    if (!isnan(temp) && !isnan(hum)) {
+      incrementNode1Count();
+      Serial.printf("Node_1 -> Temp: %.2f °C | Hum: %.2f %% | Count: %d\n",
+                    temp, hum, countNode1);
+
+      transmit(temp, hum, "NODE_1");  // send to PHP
+    } else {
+      Serial.println("Sensor error: failed to read DHT data.");
+    }
+
+    delay(1000);  // debounce delay
+  }
+
+  // --- Node 2 button pressed ---
+  if (isNode2Pressed()) {
+    Serial.println("Node_2 button pressed — preparing data...");
+
+    float temp = readTemperature();
+    float hum = readHumidity();
+
+    if (!isnan(temp) && !isnan(hum)) {
+      incrementNode2Count();
+      Serial.printf("Node_2 -> Temp: %.2f °C | Hum: %.2f %% | Count: %d\n",
+                    temp, hum, countNode2);
+
+      transmit(temp, hum, "NODE_2");  // send to PHP
+    } else {
+      Serial.println("Sensor error: failed to read DHT data.");
+    }
+
+    delay(1000);  // debounce delay
+  }
+
+  delay(100);  // small loop delay to avoid rapid polling
+}
