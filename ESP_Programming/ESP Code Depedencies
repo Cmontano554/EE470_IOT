@@ -6,8 +6,8 @@
 #include <DHT.h>
 #include <ESP8266HTTPClient.h>
 #include <WiFiClientSecure.h>
-#include <base64.h>       // for Base64 encoding
-#include <ArduinoJson.h>  // for parsing JSON from TimeAPI
+#include <base64.h>
+#include <ArduinoJson.h>
 
 // ===== Wi-Fi Setup =====
 const char* ssid     = "BananaHammock";
@@ -55,33 +55,59 @@ void initSwitches() {
   pinMode(SWITCH_NODE2, INPUT_PULLUP);
 }
 
-bool isNode1Pressed() {
-  return digitalRead(SWITCH_NODE1) == LOW;  // Active LOW
-}
-
-bool isNode2Pressed() {
-  return digitalRead(SWITCH_NODE2) == LOW;  // Active LOW
-}
+bool isNode1Pressed() { return digitalRead(SWITCH_NODE1) == LOW; }
+bool isNode2Pressed() { return digitalRead(SWITCH_NODE2) == LOW; }
 
 // ===== Activity Counters =====
 int countNode1 = 0;
 int countNode2 = 0;
 
-void incrementNode1Count() {
-  countNode1++;
+void incrementNode1Count() { countNode1++; }
+void incrementNode2Count() { countNode2++; }
+
+// ===== Time-Zone Selection =====
+String selectedTimeZone = "America/Los_Angeles"; // default PT
+
+void selectTimeZone() {
+  Serial.println("→ Select Your Time Zone (default PT - Pacific):");
+  Serial.println("1) ET  - Eastern (New York)");
+  Serial.println("2) CT  - Central (Chicago)");
+  Serial.println("3) MT  - Mountain (Denver)");
+  Serial.println("4) PT  - Pacific (Los Angeles)");
+  Serial.println("5) AKT - Alaska (Anchorage)");
+  Serial.println("6) HAT - Hawaii-Aleutian (Honolulu)");
+  Serial.println("7) AT  - Atlantic (San Juan)");
+  Serial.print("Enter number (1–7): ");
+
+  unsigned long start = millis();
+  while (!Serial.available() && (millis() - start < 15000)) delay(100);
+
+  if (Serial.available()) {
+    int choice = Serial.parseInt();
+    switch (choice) {
+      case 1: selectedTimeZone = "America/New_York"; break;
+      case 2: selectedTimeZone = "America/Chicago"; break;
+      case 3: selectedTimeZone = "America/Denver"; break;
+      case 4: selectedTimeZone = "America/Los_Angeles"; break;
+      case 5: selectedTimeZone = "America/Anchorage"; break;
+      case 6: selectedTimeZone = "Pacific/Honolulu"; break;
+      case 7: selectedTimeZone = "America/Puerto_Rico"; break;
+      default: selectedTimeZone = "America/Los_Angeles"; break;
+    }
+    Serial.print("Time zone set to: ");
+    Serial.println(selectedTimeZone);
+  } else {
+    Serial.println("\nNo input detected — using default Pacific Time (PT)");
+  }
 }
 
-void incrementNode2Count() {
-  countNode2++;
-}
-
-// ===== Real Time Retrieval (TimeAPI.io) =====
+// ===== Real-Time Fetch from TimeAPI.io =====
 String readTime() {
   WiFiClientSecure client;
-  client.setInsecure();  // Skip SSL certificate validation
+  client.setInsecure();
   HTTPClient http;
 
-  String url = "https://timeapi.io/api/Time/current/zone?timeZone=America/Los_Angeles";
+  String url = "https://timeapi.io/api/Time/current/zone?timeZone=" + selectedTimeZone;
   Serial.println("Requesting time from: " + url);
 
   http.begin(client, url);
@@ -89,15 +115,13 @@ String readTime() {
 
   if (httpCode == 200) {
     String payload = http.getString();
-    Serial.println("TimeAPI response: " + payload);
-
     StaticJsonDocument<512> doc;
     DeserializationError error = deserializeJson(doc, payload);
 
     if (!error) {
-      String dateTime = doc["dateTime"];  // e.g. "2025-10-18T21:38:52.1234567"
-      dateTime.replace("T", " ");         // change to "2025-10-18 21:38:52.1234567"
-      dateTime.remove(19);                // remove milliseconds
+      String dateTime = doc["dateTime"];
+      dateTime.replace("T", " ");
+      dateTime.remove(19); // drop milliseconds
       Serial.println("Formatted time: " + dateTime);
       return dateTime;
     } else {
@@ -112,30 +136,28 @@ String readTime() {
   http.end();
 }
 
-// ===== Data Transmission (Base64 + HTTPS) =====
+// ===== Data Transmission (HTTPS + Base64) =====
 void transmit(float temp, float hum, const char* nodeName) {
   if (WiFi.status() == WL_CONNECTED) {
     WiFiClientSecure client;
-    client.setInsecure();  // allow HTTPS without certificate check
+    client.setInsecure();
     HTTPClient http;
 
     http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-    http.setTimeout(15000);  // 15s timeout
+    http.setTimeout(15000);
     http.addHeader("User-Agent", "ESP8266SensorClient");
 
-    // --- Get real time from API ---
+    // Get real time
     String timeNow = readTime();
-    timeNow.replace(" ", "%20"); // encode space for URL
+    timeNow.replace(" ", "%20");
 
-    // --- Construct Base64-encoded message ---
+    // Build Base64 message
     String msg = "nodeId=" + String(nodeName) +
                  "&nodeTemp=" + String(temp, 2) +
                  "&nodeHum=" + String(hum, 2) +
                  "&timeReceived=" + timeNow;
 
     String encoded = base64::encode(msg);
-
-    // --- Target your Hostinger PHP script ---
     String url = "https://www.cmontanoee.com/db_insert.php?msg=" + encoded;
 
     Serial.println("Sending data to: " + url);
