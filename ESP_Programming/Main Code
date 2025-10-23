@@ -1,3 +1,14 @@
+/*==================================
+Author: Cole Montano
+Date: 10/22/2025
+Version 1.2: Updated Time Zone Choices
+Language: C++
+Compiler: Visual Studio Code
+Dependencies: PlatformIO, TimeAPI.IO, Dependencies.h
+Inputs: Temperature and Humidity Data, Node Selector
+Outputs: Datapoint w/ Temperature, Humidity, Node_name, Time 
+====================================*/
+
 #include <Arduino.h>
 #include "dependencies.h"
 
