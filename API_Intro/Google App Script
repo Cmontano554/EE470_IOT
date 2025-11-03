@@ -1,0 +1,17 @@
+function doGet(e) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("Sheet1");
+
+  // Read parameters
+  const status = e.parameter.status || "";
+  const r = e.parameter.r || "";
+  const g = e.parameter.g || "";
+  const b = e.parameter.b || "";
+
+  // Convert ON/OFF to 1/0 (everything else defaults to 0)
+  const ledVal = (String(status).toUpperCase() === "ON") ? 1 : 0;
+
+  // Append row
+  sheet.appendRow([new Date(), ledVal, r, g, b]);
+  return ContentService.createTextOutput("OK");
+}
