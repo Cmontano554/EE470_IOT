@@ -1,0 +1,166 @@
+#include <ESP8266WiFi.h>
+#include <ESP8266HTTPClient.h>
+#include <WiFiClientSecure.h>
+#include <ArduinoJson.h>
+
+// ===== USER CONFIG =====
+const char* WIFI_SSID = "BananaHammock";
+const char* WIFI_PASS = "Sonoma2021!";
+
+// Hostinger JSON file (for reading RGB & status)
+const char* STATUS_URL = "https://cmontanoee.com/API_Assignment/results.txt";
+
+// Google Sheets proxy link (Hostinger HTTPS)
+const char* GAS_URL = "https://cmontanoee.com/API_Assignment/proxy.php";
+
+// ===== HARDWARE CONFIG =====
+const int LED_PIN = D5;  // regular LED
+const int R_PIN   = D6;  // Red channel
+const int G_PIN   = D7;  // Green channel
+const int B_PIN   = D8;  // Blue channel
+const int SW1_PIN = D3;  // button 1 -> fetch both status + RGB
+const int SW2_PIN = D4;  // button 2 -> send both to Sheets
+
+const bool LED_ACTIVE_HIGH = true;
+const bool COMMON_ANODE    = false;
+const unsigned long DEBOUNCE_MS = 150;
+
+bool ledState = false;
+int rVal = 0, gVal = 0, bVal = 0;
+unsigned long sw1Last = 0, sw2Last = 0;
+
+// ---------- FUNCTION DECLARATIONS ----------
+bool fetchStateFromServer(String &ledOut, int &rOut, int &gOut, int &bOut);
+bool sendToGoogle(const String& params);
+void applyLed();
+void setRGB(uint8_t r, uint8_t g, uint8_t b);
+
+// ---------- SETUP ----------
+void setup() {
+  Serial.begin(9600);
+
+  pinMode(LED_PIN, OUTPUT);
+  pinMode(R_PIN, OUTPUT);
+  pinMode(G_PIN, OUTPUT);
+  pinMode(B_PIN, OUTPUT);
+  analogWriteRange(255);
+
+  pinMode(SW1_PIN, INPUT_PULLUP);
+  pinMode(SW2_PIN, INPUT_PULLUP);
+
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
+  Serial.print("Connecting");
+  while (WiFi.status() != WL_CONNECTED) { delay(500); Serial.print("."); }
+  Serial.println("\nWiFi connected!");
+
+  // Fetch initial state
+  String s; int r, g, b;
+  if (fetchStateFromServer(s, r, g, b)) {
+    ledState = (s == "ON");
+    rVal = r; gVal = g; bVal = b;
+    applyLed();
+    setRGB(r, g, b);
+    Serial.printf("Startup state: %s | R:%d G:%d B:%d\n", s.c_str(), r, g, b);
+  }
+}
+
+// ---------- LOOP ----------
+void loop() {
+  // ---- SW1: fetch & apply both status + RGB ----
+  if (digitalRead(SW1_PIN) == LOW && millis() - sw1Last > DEBOUNCE_MS) {
+    sw1Last = millis();
+    delay(30);
+    if (digitalRead(SW1_PIN) == LOW) {
+      String s; int r, g, b;
+      if (fetchStateFromServer(s, r, g, b)) {
+        ledState = (s == "ON");
+        rVal = r; gVal = g; bVal = b;
+        applyLed();
+        setRGB(r, g, b);
+        Serial.printf("Fetched → Status:%s | R:%d G:%d B:%d\n", s.c_str(), r, g, b);
+      } else {
+        Serial.println("❌ Fetch failed");
+      }
+      while (digitalRead(SW1_PIN) == LOW) yield();
+      delay(80);
+    }
+  }
+
+  // ---- SW2: send both data points to Google Sheets ----
+  if (digitalRead(SW2_PIN) == LOW && millis() - sw2Last > DEBOUNCE_MS) {
+    sw2Last = millis();
+    delay(30);
+    if (digitalRead(SW2_PIN) == LOW) {
+      String statusStr = ledState ? "ON" : "OFF";
+      String params = "status=" + statusStr +
+                      "&r=" + String(rVal) +
+                      "&g=" + String(gVal) +
+                      "&b=" + String(bVal);
+
+      if (sendToGoogle(params)) {
+        Serial.printf("✅ Sent to Sheets: %s | R:%d G:%d B:%d\n", statusStr.c_str(), rVal, gVal, bVal);
+      } else {
+        Serial.println("❌ Send failed");
+      }
+      while (digitalRead(SW2_PIN) == LOW) yield();
+      delay(80);
+    }
+  }
+}
+
+// ---------- HELPERS ----------
+void applyLed() {
+  if (LED_ACTIVE_HIGH) digitalWrite(LED_PIN, ledState ? HIGH : LOW);
+  else                 digitalWrite(LED_PIN, ledState ? LOW  : HIGH);
+}
+
+void setRGB(uint8_t r, uint8_t g, uint8_t b) {
+  if (COMMON_ANODE) { r = 255 - r; g = 255 - g; b = 255 - b; }
+  analogWrite(R_PIN, r);
+  analogWrite(G_PIN, g);
+  analogWrite(B_PIN, b);
+}
+
+// ---------- NETWORK ----------
+bool fetchStateFromServer(String &ledOut, int &rOut, int &gOut, int &bOut) {
+  if (WiFi.status() != WL_CONNECTED) return false;
+  WiFiClientSecure client; client.setInsecure();
+  HTTPClient http;
+
+  if (!http.begin(client, String(STATUS_URL) + "?_=" + String(millis()))) return false;
+  int code = http.GET();
+  if (code != 200) { http.end(); return false; }
+
+  String body = http.getString();
+  http.end();
+  Serial.println("🌐 Server JSON: " + body);
+
+  DynamicJsonDocument doc(256);
+  if (deserializeJson(doc, body)) return false;
+
+  String s = doc.containsKey("led") ? String((const char*)doc["led"]) : "OFF";
+  s.toUpperCase();
+  ledOut = (s == "ON") ? "ON" : "OFF";
+
+  rOut = doc["r"] | 0;
+  gOut = doc["g"] | 0;
+  bOut = doc["b"] | 0;
+  return true;
+}
+
+bool sendToGoogle(const String& params) {
+  if (WiFi.status() != WL_CONNECTED) return false;
+  WiFiClientSecure client; client.setInsecure();
+  HTTPClient http;
+
+  String url = String(GAS_URL) + "?" + params + "&_=" + String(millis());
+  Serial.println("➡️ Sending to: " + url);
+  if (!http.begin(client, url)) return false;
+
+  int code = http.GET();
+  Serial.printf("⬅️ Response code: %d\n", code);
+  if (code > 0) Serial.println("⬅️ Response body: " + http.getString());
+  http.end();
+
+  return code == 200;
+}
