@@ -1,3 +1,30 @@
+/*========================================
+Author: Cole Montano
+Date: 11/03/2025
+Version: 2.0 — Added Dual-Button Queue Logic and Full RGB Integration
+Language: C++
+Compiler: PlatformIO (Visual Studio Code)
+Dependencies: ESP8266WiFi, ESP8266HTTPClient, WiFiClientSecure, ArduinoJson
+
+Inputs:
+  - Button 1 (Fetch): Requests LED state and RGB values from remote server
+  - Button 2 (Send): Sends current LED state and RGB values to Google Sheets
+  - Dual-button press: Executes Fetch first, then queues and executes Send
+
+Outputs:
+  - LED ON/OFF state
+  - RGB PWM control for Red, Green, and Blue channels
+  - Logged datapoints to Google Sheets (Timestamp, Status, R, G, B)
+
+Description:
+  This program connects an ESP8266 microcontroller to Wi-Fi to control and log
+  an RGB LED system via HTTP and HTTPS requests. The device can:
+    • Fetch live LED and RGB data from a Hostinger server (JSON file)
+    • Send updates to a Google Sheet through a proxy and Apps Script
+    • Handle simultaneous button presses gracefully with queued execution
+
+========================================*/
+
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
 #include <WiFiClientSecure.h>
