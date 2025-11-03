@@ -80,7 +80,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     <!-- RGB Intensity Chart -->
     <h3>RGB Channel Intensities</h3>
     <iframe class = "Chart" width="600" height="371" seamless frameborder="0" scrolling="no" src="https://docs.google.com/spreadsheets/d/e/2PACX-1vSKdac-qeP8e2xriKjvAx_xAsWwAeFXIe3gokhjtCZ7cKjNs_OjqeMKJb0jkPjxyCzGCRhPg_pEouUP/pubchart?oid=40903891&amp;format=interactive"></iframe>
-
+ <h4>Status (On or Off)</h4>
+    <iframe class = "Chart" width="600" height="371" seamless frameborder="0" scrolling="no" src="https://docs.google.com/spreadsheets/d/e/2PACX-1vSKdac-qeP8e2xriKjvAx_xAsWwAeFXIe3gokhjtCZ7cKjNs_OjqeMKJb0jkPjxyCzGCRhPg_pEouUP/pubchart?oid=1760439108&amp;format=interactive"></iframe>
   </section>
 <script>
   // Refresh both charts every 60 seconds
