@@ -1,0 +1,161 @@
+#include <Arduino.h>
+#include <ESP8266WiFi.h>
+#include <WiFiClientSecure.h>
+#include <PubSubClient.h>
+#include <DHT.h>
+#include <time.h>
+#include <TZ.h>   // For timezone support
+
+// ---------- WiFi ----------
+const char* ssid     = "BananaHammock";
+const char* password = "Sonoma2021!";
+
+// ---------- MQTT (HiveMQ Cloud) ----------
+const char* mqtt_server   = "aa8f2cbc895041cb8da190bd93bd9342.s1.eu.hivemq.cloud";
+const int   mqtt_port     = 8883;
+const char* mqtt_user     = "ColeMontanoESP";
+const char* mqtt_pass     = "HiveMQ12";
+
+// ---------- Topics ----------
+const char* publishTopic   = "cole/TempSensor";   // ESP publishes JSON
+const char* subscribeTopic = "cole/LED";          // LED control
+
+// ---------- Pins ----------
+#define LED_PIN    D5
+#define DHTPIN     D2
+#define DHTTYPE    DHT11
+#define BUTTON_PIN D7   // D3 replaced with D7 to avoid boot issues
+
+WiFiClientSecure espClient;
+PubSubClient client(espClient);
+DHT dht(DHTPIN, DHTTYPE);
+
+// Debounce
+bool lastButtonState = HIGH;
+unsigned long lastDebounceMs = 0;
+const unsigned long debounceMs = 300;
+
+// ---------- WiFi ----------
+void setup_wifi() {
+  Serial.println();
+  Serial.print("Connecting to "); Serial.println(ssid);
+
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("\nWiFi connected");
+  Serial.print("IP: "); Serial.println(WiFi.localIP());
+}
+
+// ---------- MQTT callback ----------
+void callback(char* topic, byte* payload, int length) {
+  String msg;
+  for (int i = 0; i < length; i++) msg += (char)payload[i];
+
+  msg.trim();
+  Serial.print("MQTT Message: "); Serial.println(msg);
+
+  if (msg == "1") {
+    digitalWrite(LED_PIN, HIGH);
+    Serial.println("LED ON");
+  } else if (msg == "0") {
+    digitalWrite(LED_PIN, LOW);
+    Serial.println("LED OFF");
+  }
+}
+
+// ---------- MQTT reconnect ----------
+void reconnect() {
+  while (!client.connected()) {
+    Serial.print("Attempting MQTT connection... ");
+
+    String clientId = "ESP8266Client-";
+    clientId += String(random(0xffff), HEX);
+
+    if (client.connect(clientId.c_str(), mqtt_user, mqtt_pass)) {
+      Serial.println("connected");
+
+      client.subscribe(subscribeTopic);
+      Serial.println("Subscribed to cole/LED");
+    } else {
+      Serial.print("failed, rc=");
+      Serial.print(client.state());
+      Serial.println(" retrying in 5 seconds");
+      delay(5000);
+    }
+  }
+}
+
+// ---------- Setup ----------
+void setup() {
+  Serial.begin(9600);
+
+  pinMode(LED_PIN, OUTPUT);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+
+  espClient.setInsecure();
+
+  setup_wifi();
+  client.setServer(mqtt_server, mqtt_port);
+  client.setCallback(callback);
+
+  dht.begin();
+
+  // -------- NTP TIME SETUP ----------
+  configTime(TZ_America_Los_Angeles, "pool.ntp.org", "time.nist.gov");
+
+  Serial.println("Waiting for NTP time...");
+  while (time(nullptr) < 100000) {
+    Serial.print(".");
+    delay(500);
+  }
+  Serial.println("\nTime synced!");
+}
+
+// ---------- Loop ----------
+void loop() {
+  if (!client.connected()) reconnect();
+  client.loop();
+
+  bool current = digitalRead(BUTTON_PIN);
+  unsigned long now = millis();
+
+  if (current == LOW && lastButtonState == HIGH && (now - lastDebounceMs) > debounceMs) {
+    lastDebounceMs = now;
+
+    float t = dht.readTemperature();
+    float h = dht.readHumidity();
+
+    if (!isnan(t) && !isnan(h)) {
+
+      // ---- Format timestamp ----
+      time_t nowTime = time(nullptr);
+      struct tm * timeinfo = localtime(&nowTime);
+
+      char timeStr[25];
+      strftime(timeStr, sizeof(timeStr), "%Y-%m-%dT%H:%M:%S", timeinfo);
+
+      // ---- Build JSON ----
+      char json[200];
+      snprintf(json, sizeof(json),
+        "{\"node\":\"NODE_1\",\"timestamp\":\"%s\",\"temperature\":%.1f,\"humidity\":%.1f}",
+        timeStr, t, h
+      );
+
+      Serial.print("Publishing JSON: ");
+      Serial.println(json);
+
+      client.publish(publishTopic, json);
+
+    } else {
+      Serial.println("DHT read failed!");
+    }
+  }
+
+  lastButtonState = current;
+}
