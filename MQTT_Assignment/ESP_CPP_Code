@@ -1,3 +1,13 @@
+/*==================================
+Author: Cole Montano
+Date: 11/22/2025
+Version 1.2: Updated JSON Format
+Language: C++
+Compiler: Visual Studio Code
+Dependencies: PlatformIO, PubSubClient, DHT11, NTP Time
+Inputs: Temperature, Humidity, Button Press
+Outputs: JSON datapoint with Node, Time, Temp, Humidity
+====================================*/
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
 #include <WiFiClientSecure.h>
