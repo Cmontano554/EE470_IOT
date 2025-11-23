@@ -17,14 +17,14 @@ Outputs: JSON datapoint with Node, Time, Temp, Humidity
 #include <TZ.h>   // For timezone support
 
 // ---------- WiFi ----------
-const char* ssid     = "BananaHammock";
-const char* password = "Sonoma2021!";
+const char* ssid     = "";
+const char* password = "";
 
 // ---------- MQTT (HiveMQ Cloud) ----------
-const char* mqtt_server   = "aa8f2cbc895041cb8da190bd93bd9342.s1.eu.hivemq.cloud";
+const char* mqtt_server   = "";
 const int   mqtt_port     = 8883;
-const char* mqtt_user     = "ColeMontanoESP";
-const char* mqtt_pass     = "HiveMQ12";
+const char* mqtt_user     = "";
+const char* mqtt_pass     = "";
 
 // ---------- Topics ----------
 const char* publishTopic   = "cole/TempSensor";   // ESP publishes JSON
