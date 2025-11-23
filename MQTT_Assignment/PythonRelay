@@ -1,0 +1,76 @@
+import json
+import paho.mqtt.client as mqtt
+import requests
+import base64
+
+# ---------- MQTT (HiveMQ Cloud) ----------
+MQTT_HOST  = "aa8f2cbc895041cb8da190bd93bd9342.s1.eu.hivemq.cloud"
+MQTT_PORT  = 8883
+MQTT_USER  = "ColeMontanoESP"
+MQTT_PASS  = "HiveMQ12"
+MQTT_TOPIC = "cole/TempSensor"
+
+# ---------- Your PHP insert URL ----------
+PHP_URL = "https://cmontanoee.com/db_insert.php"
+
+def send_to_php(node, timestamp, temp, hum):
+
+    # Create old format string
+    msg = (
+        f"nodeId={node}"
+        f"&nodeTemp={temp:.2f}"
+        f"&nodeHum={hum:.2f}"
+        f"&timeReceived={timestamp}"
+    )
+
+    # Base64 encode
+    encoded = base64.b64encode(msg.encode()).decode()
+
+    # Build final URL
+    url = f"{PHP_URL}?msg={encoded}"
+
+    print("➡ Sending to PHP:", url)
+
+    try:
+        response = requests.get(url, timeout=10)
+        print("PHP response:", response.text)
+    except Exception as e:
+        print("❌ PHP insert error:", e)
+
+
+# ---------- MQTT callbacks ----------
+def on_connect(client, userdata, flags, rc):
+    if rc == 0:
+        print("Connected to HiveMQ Cloud")
+        client.subscribe(MQTT_TOPIC)
+    else:
+        print("Connect failed:", rc)
+
+def on_message(client, userdata, msg):
+    payload = msg.payload.decode().strip()
+    print("MQTT Received:", payload)
+
+    try:
+        data = json.loads(payload)
+
+        node = data["node"]
+        timestamp = data["timestamp"].replace("T", " ")   # Convert format
+        temp = data["temperature"]
+        hum = data["humidity"]
+
+        send_to_php(node, timestamp, temp, hum)
+
+    except Exception as e:
+        print("JSON parse error:", e)
+
+
+# ---------- Main ----------
+client = mqtt.Client(client_id="ColeRelay", protocol=mqtt.MQTTv311)
+client.tls_set()
+client.username_pw_set(MQTT_USER, MQTT_PASS)
+client.on_connect = on_connect
+client.on_message = on_message
+
+print("Connecting to HiveMQ Cloud…")
+client.connect(MQTT_HOST, MQTT_PORT, keepalive=60)
+client.loop_forever()
