@@ -1,3 +1,14 @@
+# ===========================================
+# Author: Cole Montano
+# Date: 11/22/2025
+# Version 2.0: MQTT Relay Update
+#
+# Description: Subscribes to MQTT topic, receives JSON data from ESP, reformats it, and sends it to the existing PHP insert script.
+#
+# Dependencies:paho-mqtt, requests, base64, json
+# Inputs:JSON payload from MQTT broker
+# Outputs: Encoded data sent to db_insert.php
+# ===========================================
 import json
 import paho.mqtt.client as mqtt
 import requests
